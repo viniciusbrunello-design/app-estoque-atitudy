@@ -1,14 +1,18 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import type { KeyboardEvent } from 'react';
 import { Bot, Send, Mic, MicOff, Trash2 } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import './Assistente.css';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySpeechRecognition = any;
 
 export default function Assistente() {
   const { messages, isLoading, isLoadingHistory, sendMessage, clearHistory } = useChat();
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<AnySpeechRecognition>(null);
   const accumulatedRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,8 +42,9 @@ export default function Assistente() {
   };
 
   const toggleVoice = () => {
-    const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
-      ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
 
     if (!SR) {
       alert('Reconhecimento de voz não suportado neste navegador.');
@@ -58,7 +63,7 @@ export default function Assistente() {
     recognitionRef.current = recognition;
     accumulatedRef.current = '';
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: AnySpeechRecognition) => {
       let finalText = '';
       let interimText = '';
       for (let i = 0; i < event.results.length; i++) {
