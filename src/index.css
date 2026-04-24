@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Colors - Minimalist & Premium */
+  --color-bg-main: #f9f9fa; /* off-white warm */
+  --color-bg-surface: #ffffff;
+  
+  /* Text */
+  --color-text-main: #1f2937; /* dark gray */
+  --color-text-secondary: #6b7280; /* medium gray */
+  --color-text-tertiary: #9ca3af;
+  
+  /* Primary - Teal / Dark Petroleum Green */
+  --color-primary: #0f766e; /* Tailwind teal-700 */
+  --color-primary-hover: #115e59; /* teal-800 */
+  --color-primary-light: #ccfbf1; /* teal-100 */
+  
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-success-bg: #d1fae5;
+  --color-success-text: #065f46;
+  
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  
+  --color-danger: #ef4444;
+  --color-danger-bg: #fee2e2;
+  --color-danger-text: #991b1b;
+  
+  /* Borders */
+  --border-color: #e5e7eb;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  
+  /* Dimensions & Spacing */
+  --sidebar-width: 250px;
+  --header-height: 64px;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-full: 9999px;
+  
+  /* Typography */
+  --font-family: 'Inter', sans-serif;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+button {
+  font-family: var(--font-family);
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+input, select, textarea {
+  font-family: var(--font-family);
+}
+
+/* Base App Layout Classes */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Typography Utility */
+.text-h1 { font-size: 1.5rem; font-weight: 600; }
+.text-h2 { font-size: 1.25rem; font-weight: 600; }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.text-secondary { color: var(--color-text-secondary); }
+.text-success { color: var(--color-success); }
+.text-danger { color: var(--color-danger); }
+.text-primary { color: var(--color-primary); }
+
+/* Common UI */
+.surface {
+  background-color: var(--color-bg-surface);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    padding-bottom: 70px; /* space for mobile nav */
+  }
+  
+  .main-content {
+    padding: 1rem;
+    padding-bottom: 2rem;
+  }
+}
