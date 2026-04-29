@@ -29,7 +29,9 @@ export default function Assistente() {
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<AnySpeechRecognition>(null);
-  const accumulatedRef = useRef('');
+  const accumulatedRef = useRef('');   // final text da sessão atual
+  const previousTextRef = useRef('');  // texto acumulado de sessões anteriores (restarts Safari)
+  const isRecordingRef = useRef(false); // espelho de isRecording acessível em closures
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,44 +97,81 @@ export default function Assistente() {
     const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
 
     if (!SR) {
-      alert('Reconhecimento de voz não suportado neste navegador.');
+      toast.error('Reconhecimento de voz não suportado neste navegador.');
       return;
     }
 
-    if (isRecording) {
+    if (isRecordingRef.current) {
+      isRecordingRef.current = false;
       recognitionRef.current?.stop();
       return;
     }
 
-    const recognition = new SR();
-    recognition.lang = 'pt-BR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognitionRef.current = recognition;
     accumulatedRef.current = '';
-
-    recognition.onresult = (event: AnySpeechRecognition) => {
-      let finalText = '';
-      let interimText = '';
-      for (let i = 0; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalText += t + ' ';
-        } else {
-          interimText += t;
-        }
-      }
-      accumulatedRef.current = finalText;
-      setInput(finalText + interimText);
-    };
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onend = () => {
-      setInput(accumulatedRef.current.trim());
-      setIsRecording(false);
-    };
-
-    recognition.start();
+    previousTextRef.current = '';
+    isRecordingRef.current = true;
     setIsRecording(true);
+
+    const startSession = () => {
+      const recognition = new SR();
+      recognition.lang = 'pt-BR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognitionRef.current = recognition;
+
+      recognition.onresult = (event: AnySpeechRecognition) => {
+        let sessionFinal = '';
+        let interim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            sessionFinal += t + ' ';
+          } else {
+            interim += t;
+          }
+        }
+        accumulatedRef.current = sessionFinal;
+        setInput(previousTextRef.current + sessionFinal + interim);
+      };
+
+      recognition.onerror = (event: AnySpeechRecognition) => {
+        // 'no-speech' é comum no iOS (silêncio longo) — deixa o onend tratar
+        if (event.error !== 'no-speech') {
+          isRecordingRef.current = false;
+          setIsRecording(false);
+        }
+      };
+
+      recognition.onend = () => {
+        if (isRecordingRef.current) {
+          // Safari/iOS encerra a sessão automaticamente por silêncio.
+          // Carregamos o texto final e reiniciamos silenciosamente.
+          previousTextRef.current += accumulatedRef.current;
+          accumulatedRef.current = '';
+          setTimeout(() => {
+            if (isRecordingRef.current) {
+              try { startSession(); } catch {
+                isRecordingRef.current = false;
+                setIsRecording(false);
+              }
+            }
+          }, 200);
+        } else {
+          // Usuário pressionou parar — finaliza.
+          setInput((previousTextRef.current + accumulatedRef.current).trim());
+          setIsRecording(false);
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch {
+        isRecordingRef.current = false;
+        setIsRecording(false);
+      }
+    };
+
+    startSession();
   };
 
   const handleClear = async () => {
