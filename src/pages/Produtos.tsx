@@ -15,20 +15,36 @@ const INITIAL_FORM = {
   modelo: '',
   precoCompra: '' as number | '',
   precoVenda: '' as number | '',
+  estoqueMinimo: 2,
   coresStr: '',
   tamanhosStr: '',
 };
 
+function calcMargem(precoVenda: number, precoCompra: number): number {
+  if (precoVenda <= 0) return 0;
+  return ((precoVenda - precoCompra) / precoVenda) * 100;
+}
+
+function MargemBadge({ precoVenda, precoCompra }: { precoVenda: number; precoCompra: number }) {
+  const m = calcMargem(precoVenda, precoCompra);
+  const cls = m >= 40 ? 'badge-success' : m >= 20 ? 'badge-warning' : 'badge-danger';
+  return <span className={`badge ${cls}`}>{m.toFixed(0)}%</span>;
+}
+
 export default function Produtos() {
-  const { produtos, variantes, addProduto, updateProduto, archiveProduto, isAdding, isUpdating } = useProdutos();
+  const { produtos, variantes, addProduto, updateProduto, archiveProduto, addVariantesProduto, isAdding, isUpdating, isAddingVariantes } = useProdutos();
   const [modal, setModal] = useState<ModalState>({ type: 'none' });
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(INITIAL_FORM);
   const [formError, setFormError] = useState('');
 
+  // Estado para adicionar variantes no modal de edição
+  const [novasCoresStr, setNovasCoresStr] = useState('');
+  const [novosTamanhosStr, setNovosTamanhosStr] = useState('');
+  const [variantError, setVariantError] = useState('');
+
   const isOpen = modal.type !== 'none';
 
-  // Fecha modal com ESC
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
     if (isOpen) document.addEventListener('keydown', handler);
@@ -42,19 +58,30 @@ export default function Produtos() {
   };
 
   const openEdit = (produto: Produto) => {
+    const variantesProduto = variantes.filter((v) => v.produtoId === produto.id);
+    const estoqueMinimo = variantesProduto[0]?.estoqueMinimo ?? 2;
     setForm({
       tipo: produto.tipo,
       modelo: produto.modelo,
       precoCompra: produto.precoCompra,
       precoVenda: produto.precoVenda,
+      estoqueMinimo,
       coresStr: '',
       tamanhosStr: '',
     });
+    setNovasCoresStr('');
+    setNovosTamanhosStr('');
     setFormError('');
+    setVariantError('');
     setModal({ type: 'edit', produto });
   };
 
-  const closeModal = () => setModal({ type: 'none' });
+  const closeModal = () => {
+    setModal({ type: 'none' });
+    setNovasCoresStr('');
+    setNovosTamanhosStr('');
+    setVariantError('');
+  };
 
   const activeProducts = produtos.filter((p) =>
     p.modelo.toLowerCase().includes(search.toLowerCase())
@@ -78,7 +105,8 @@ export default function Produtos() {
 
     await addProduto(
       { tipo: form.tipo, modelo: form.modelo, precoCompra: Number(form.precoCompra), precoVenda: Number(form.precoVenda), ativo: true },
-      variantesData
+      variantesData,
+      form.estoqueMinimo
     );
     closeModal();
   };
@@ -97,8 +125,45 @@ export default function Produtos() {
       modelo: form.modelo,
       precoCompra: Number(form.precoCompra),
       precoVenda: Number(form.precoVenda),
+      estoqueMinimo: form.estoqueMinimo,
     });
     closeModal();
+  };
+
+  const handleAddVariantes = async () => {
+    if (modal.type !== 'edit') return;
+    const novasCores = novasCoresStr.split(',').map((c) => c.trim()).filter(Boolean);
+    const novosTamanhos = novosTamanhosStr.split(',').map((t) => t.trim()).filter(Boolean);
+
+    if (novasCores.length === 0 && novosTamanhos.length === 0) {
+      setVariantError('Informe ao menos uma cor ou tamanho novo.');
+      return;
+    }
+
+    const variantesProduto = variantes.filter((v) => v.produtoId === modal.produto.id);
+    const coresExistentes = [...new Set(variantesProduto.map((v) => v.cor).filter(Boolean))];
+    const tamanhosExistentes = [...new Set(variantesProduto.map((v) => v.tamanho).filter(Boolean))];
+
+    let variantesData: { cor: string; tamanho: string }[] = [];
+
+    if (modal.produto.tipo === 'Calçados') {
+      const coresBase = novasCores.length > 0 ? novasCores : coresExistentes;
+      const tamanhosBase = novosTamanhos.length > 0 ? novosTamanhos : tamanhosExistentes;
+      variantesData = (coresBase.length > 0 ? coresBase : ['']).flatMap((cor) =>
+        (tamanhosBase.length > 0 ? tamanhosBase : ['']).map((tamanho) => ({ cor, tamanho }))
+      );
+    } else {
+      variantesData = (novasCores.length > 0 ? novasCores : ['']).map((cor) => ({ cor, tamanho: '' }));
+    }
+
+    setVariantError('');
+    try {
+      await addVariantesProduto(modal.produto.id, variantesData, form.estoqueMinimo);
+      setNovasCoresStr('');
+      setNovosTamanhosStr('');
+    } catch {
+      setVariantError('Erro ao adicionar. Verifique se as variantes já existem.');
+    }
   };
 
   const handleArchive = async () => {
@@ -147,6 +212,7 @@ export default function Produtos() {
                 <th>Tipo</th>
                 <th>Modelo</th>
                 <th>Variantes</th>
+                <th>Margem</th>
                 <th>Preço Venda</th>
                 <th>Preço Compra</th>
                 <th style={{ textAlign: 'right' }}>Ações</th>
@@ -160,22 +226,15 @@ export default function Produtos() {
                     <td><span className="badge badge-primary">{produto.tipo}</span></td>
                     <td><strong style={{ fontWeight: 500 }}>{produto.modelo}</strong></td>
                     <td><span className="text-secondary text-sm">{qtdVariantes} variação{qtdVariantes !== 1 ? 'ões' : ''}</span></td>
+                    <td><MargemBadge precoVenda={produto.precoVenda} precoCompra={produto.precoCompra} /></td>
                     <td><strong style={{ fontWeight: 500 }}>R$ {produto.precoVenda.toFixed(2)}</strong></td>
                     <td className="text-secondary">R$ {produto.precoCompra.toFixed(2)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
-                        <button
-                          className="btn btn-sm btn-secondary"
-                          title="Editar produto"
-                          onClick={() => openEdit(produto)}
-                        >
+                        <button className="btn btn-sm btn-secondary" title="Editar produto" onClick={() => openEdit(produto)}>
                           <Pencil size={14} /> Editar
                         </button>
-                        <button
-                          className="btn btn-sm btn-ghost"
-                          title="Arquivar produto"
-                          onClick={() => setModal({ type: 'confirmArchive', produto })}
-                        >
+                        <button className="btn btn-sm btn-ghost" title="Arquivar produto" onClick={() => setModal({ type: 'confirmArchive', produto })}>
                           <Archive size={14} />
                         </button>
                       </div>
@@ -226,6 +285,12 @@ export default function Produtos() {
                     <label className="form-label">Preço de Venda (R$) *</label>
                     <input required type="number" step="0.01" min="0" className="form-control" value={form.precoVenda} onChange={(e) => { setFormError(''); setForm({ ...form, precoVenda: e.target.value ? Number(e.target.value) : '' }); }} placeholder="0,00" />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Estoque Mínimo</label>
+                  <input type="number" min="0" className="form-control" value={form.estoqueMinimo} onChange={(e) => setForm({ ...form, estoqueMinimo: Number(e.target.value) })} />
+                  <span className="form-hint">Alerta de estoque baixo no dashboard quando atingir esta quantidade.</span>
                 </div>
 
                 <div className="form-group">
@@ -285,8 +350,85 @@ export default function Produtos() {
                   </div>
                 </div>
 
-                <div className="alert alert-warning" style={{ marginTop: '0.5rem' }}>
-                  Para alterar cores, tamanhos ou tipo do produto, arquive-o e cadastre novamente.
+                <div className="form-group">
+                  <label className="form-label">Estoque Mínimo</label>
+                  <input type="number" min="0" className="form-control" value={form.estoqueMinimo} onChange={(e) => setForm({ ...form, estoqueMinimo: Number(e.target.value) })} />
+                  <span className="form-hint">Alerta de estoque baixo no dashboard quando atingir esta quantidade.</span>
+                </div>
+
+                {/* Variantes existentes */}
+                {(() => {
+                  const variantesProduto = variantes.filter((v) => v.produtoId === modal.produto.id);
+                  const coresExistentes = [...new Set(variantesProduto.map((v) => v.cor).filter(Boolean))];
+                  const tamanhosExistentes = [...new Set(variantesProduto.map((v) => v.tamanho).filter(Boolean))];
+                  return (
+                    <div className="variantes-section">
+                      <p className="variantes-section-title">Variantes Existentes <span className="text-secondary text-sm">({variantesProduto.length})</span></p>
+                      {variantesProduto.length === 0 ? (
+                        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Nenhuma variante cadastrada.</p>
+                      ) : (
+                        <div className="variantes-tags">
+                          {coresExistentes.length > 0 && (
+                            <div className="variantes-row">
+                              <span className="variantes-label">Cores:</span>
+                              {coresExistentes.map((c) => <span key={c} className="badge badge-primary">{c}</span>)}
+                            </div>
+                          )}
+                          {tamanhosExistentes.length > 0 && (
+                            <div className="variantes-row">
+                              <span className="variantes-label">Tamanhos:</span>
+                              {tamanhosExistentes.sort().map((t) => <span key={t} className="badge badge-gray">{t}</span>)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Adicionar novas variantes */}
+                <div className="variantes-section">
+                  <p className="variantes-section-title">Adicionar Novas Variantes</p>
+
+                  <div className="form-group">
+                    <label className="form-label">Novas Cores</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={novasCoresStr}
+                      onChange={(e) => { setVariantError(''); setNovasCoresStr(e.target.value); }}
+                      placeholder="Ex: Caramelo, Vinho"
+                    />
+                    {modal.produto.tipo === 'Calçados' && (
+                      <span className="form-hint">Será combinado com todos os tamanhos existentes.</span>
+                    )}
+                  </div>
+
+                  {modal.produto.tipo === 'Calçados' && (
+                    <div className="form-group">
+                      <label className="form-label">Novos Tamanhos</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={novosTamanhosStr}
+                        onChange={(e) => { setVariantError(''); setNovosTamanhosStr(e.target.value); }}
+                        placeholder="Ex: 40, 41"
+                      />
+                      <span className="form-hint">Será combinado com todas as cores existentes.</span>
+                    </div>
+                  )}
+
+                  {variantError && <div className="alert alert-danger" style={{ marginBottom: '0.75rem' }}>{variantError}</div>}
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleAddVariantes}
+                    disabled={isAddingVariantes}
+                  >
+                    <Plus size={14} />
+                    {isAddingVariantes ? 'Adicionando...' : 'Adicionar Variantes'}
+                  </button>
                 </div>
               </div>
               <div className="modal-footer">

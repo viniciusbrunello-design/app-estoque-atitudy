@@ -10,6 +10,8 @@ export default function Movimentacoes() {
   const { movimentacoes } = useMovimentacoes();
   const [search, setSearch] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
 
   const getVariantName = (varianteId: string) => {
     const variant = variantes.find((v) => v.id === varianteId);
@@ -26,8 +28,11 @@ export default function Movimentacoes() {
   const filteredMovimentacoes = movimentacoes.filter((mov) => {
     if (filtroTipo !== 'Todos' && mov.tipoMovimentacao !== filtroTipo) return false;
     const nome = getVariantName(mov.varianteId).toLowerCase();
-    const isObservacaoMatch = mov.observacao?.toLowerCase().includes(search.toLowerCase());
-    return nome.includes(search.toLowerCase()) || isObservacaoMatch;
+    const termo = search.toLowerCase();
+    if (termo && !nome.includes(termo) && !mov.observacao?.toLowerCase().includes(termo)) return false;
+    if (dataInicio && new Date(mov.dataHora) < new Date(dataInicio + 'T00:00:00')) return false;
+    if (dataFim && new Date(mov.dataHora) > new Date(dataFim + 'T23:59:59')) return false;
+    return true;
   });
 
   return (
@@ -56,6 +61,14 @@ export default function Movimentacoes() {
             <option value="Saída">Saídas</option>
             <option value="Ajuste Manual">Ajustes Manuais</option>
           </select>
+        </div>
+        <div className="filter-select">
+          <span className="filter-date-label">De</span>
+          <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+        </div>
+        <div className="filter-select">
+          <span className="filter-date-label">Até</span>
+          <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import { useProdutos } from '../hooks/useProdutos';
 import { useEstoque } from '../hooks/useEstoque';
 import { useMovimentacoes } from '../hooks/useMovimentacoes';
-import { Package, Boxes, AlertTriangle, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
+import { Package, Boxes, AlertTriangle, TrendingUp, TrendingDown, ArrowRightLeft, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const { movimentacoes } = useMovimentacoes();
 
   const totalStock = items.reduce((sum, item) => sum + item.saldo, 0);
+  const valorTotalEstoque = items.reduce((sum, item) => sum + item.saldo * item.product.precoCompra, 0);
   const lowStockItems = items.filter((item) => item.isLow);
 
   const recentMovements = [...movimentacoes]
@@ -67,6 +68,18 @@ export default function Dashboard() {
           <div>
             <p className="kpi-label">Estoque Baixo</p>
             <p className="kpi-value">{lowStockItems.length}</p>
+          </div>
+        </div>
+
+        <div className="surface kpi-card">
+          <div className="kpi-icon" style={{ backgroundColor: '#dcfce7', color: '#16a34a' }}>
+            <Wallet size={22} />
+          </div>
+          <div>
+            <p className="kpi-label">Valor em Estoque</p>
+            <p className="kpi-value" style={{ fontSize: '1.25rem' }}>
+              {valorTotalEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
           </div>
         </div>
       </div>

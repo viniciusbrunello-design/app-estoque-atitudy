@@ -478,7 +478,8 @@
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
-.filter-select select {
+.filter-select select,
+.filter-select input[type="date"] {
   border: none;
   outline: none;
   font-size: 0.875rem;
@@ -487,4 +488,50 @@
   font-family: var(--font-family);
   padding: 0.5625rem 0;
   cursor: pointer;
+}
+
+.filter-date-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-right: 0.375rem;
+  white-space: nowrap;
+}
+
+/* =============================================
+   Seção de variantes (modal de edição)
+   ============================================= */
+.variantes-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  margin-top: 0.75rem;
+}
+
+.variantes-section-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+}
+
+.variantes-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.variantes-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.variantes-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  min-width: 60px;
 }

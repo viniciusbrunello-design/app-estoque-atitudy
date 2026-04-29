@@ -2,21 +2,23 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useEstoque } from '../hooks/useEstoque';
 import { Search, Plus, Minus, X, Boxes } from 'lucide-react';
-import type { TipoMovimentacao } from '../types';
+import type { TipoMovimentacao, CategoriaProduto } from '../types';
 
 type ModalData = { varianteId: string; nome: string; tipo: 'Entrada' | 'Saída' } | null;
 
 export default function Estoque() {
   const { items, registrarMovimentacao } = useEstoque();
   const [search, setSearch] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState<'Todos' | CategoriaProduto>('Todos');
   const [modalData, setModalData] = useState<ModalData>(null);
   const [quantidade, setQuantidade] = useState<number | ''>('');
   const [observacao, setObservacao] = useState('');
   const [error, setError] = useState('');
 
-  const filteredItems = items.filter((item) =>
-    item.nome.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredItems = items.filter((item) => {
+    if (filtroTipo !== 'Todos' && item.product.tipo !== filtroTipo) return false;
+    return item.nome.toLowerCase().includes(search.toLowerCase());
+  });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
@@ -65,14 +67,24 @@ export default function Estoque() {
         </div>
       </div>
 
-      <div className="search-bar">
-        <Search size={18} color="var(--color-text-tertiary)" />
-        <input
-          type="text"
-          placeholder="Buscar por modelo, cor ou tamanho..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="filters-bar">
+        <div className="search-bar">
+          <Search size={18} color="var(--color-text-tertiary)" />
+          <input
+            type="text"
+            placeholder="Buscar por modelo, cor ou tamanho..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="filter-select">
+          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)}>
+            <option value="Todos">Todas as Categorias</option>
+            <option value="Calçados">Calçados</option>
+            <option value="Bolsas">Bolsas</option>
+            <option value="Bijuterias">Bijuterias</option>
+          </select>
+        </div>
       </div>
 
       {filteredItems.length === 0 ? (

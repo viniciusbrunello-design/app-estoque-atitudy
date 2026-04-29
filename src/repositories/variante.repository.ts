@@ -44,7 +44,7 @@ export const varianteRepository = {
   },
 
   async criarEmLote(
-    variantesData: { produtoId: string; cor: string; tamanho: string }[]
+    variantesData: { produtoId: string; cor: string; tamanho: string; estoqueMinimo?: number }[]
   ): Promise<Variante[]> {
     if (variantesData.length === 0) return []
 
@@ -52,6 +52,7 @@ export const varianteRepository = {
       produto_id: v.produtoId,
       cor: v.cor.trim(),
       tamanho: v.tamanho.trim(),
+      estoque_minimo: v.estoqueMinimo ?? 2,
     }))
 
     const { data, error } = await supabase
@@ -61,5 +62,14 @@ export const varianteRepository = {
 
     if (error) throw new Error(`Erro ao criar variantes: ${error.message}`)
     return (data as VarianteRow[]).map(toVariante)
+  },
+
+  async atualizarMinimosPorProduto(produtoId: string, estoqueMinimo: number): Promise<void> {
+    const { error } = await supabase
+      .from('variantes')
+      .update({ estoque_minimo: estoqueMinimo })
+      .eq('produto_id', produtoId)
+
+    if (error) throw new Error(`Erro ao atualizar estoque mínimo: ${error.message}`)
   },
 }

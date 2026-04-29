@@ -24,13 +24,15 @@ export function useProdutos() {
     mutationFn: async ({
       produto,
       variantesData,
+      estoqueMinimo,
     }: {
       produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean }
       variantesData: { cor: string; tamanho: string }[]
+      estoqueMinimo: number
     }) => {
       const novoProduto = await produtoRepository.criar(produto)
       await varianteRepository.criarEmLote(
-        variantesData.map((v) => ({ produtoId: novoProduto.id, ...v }))
+        variantesData.map((v) => ({ produtoId: novoProduto.id, ...v, estoqueMinimo }))
       )
     },
     onSuccess: () => {
@@ -40,10 +42,24 @@ export function useProdutos() {
   })
 
   const updateProdutoMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { modelo: string; precoCompra: number; precoVenda: number } }) =>
-      produtoRepository.atualizar(id, data),
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string
+      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number }
+    }) => {
+      await produtoRepository.atualizar(id, {
+        modelo: data.modelo,
+        precoCompra: data.precoCompra,
+        precoVenda: data.precoVenda,
+      })
+      await varianteRepository.atualizarMinimosPorProduto(id, data.estoqueMinimo)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.produtos })
+      queryClient.invalidateQueries({ queryKey: ['variantes'] })
+      queryClient.invalidateQueries({ queryKey: ['saldos'] })
     },
   })
 
@@ -55,18 +71,46 @@ export function useProdutos() {
     },
   })
 
+  const addVariantesMutation = useMutation({
+    mutationFn: ({
+      produtoId,
+      variantesData,
+      estoqueMinimo,
+    }: {
+      produtoId: string
+      variantesData: { cor: string; tamanho: string }[]
+      estoqueMinimo: number
+    }) =>
+      varianteRepository.criarEmLote(
+        variantesData.map((v) => ({ produtoId, ...v, estoqueMinimo }))
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['variantes'] })
+      queryClient.invalidateQueries({ queryKey: ['saldos'] })
+    },
+  })
+
   return {
     produtos,
     variantes,
     isLoading: loadingProdutos || loadingVariantes,
     addProduto: (
       produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean },
-      variantesData: { cor: string; tamanho: string }[]
-    ) => addProdutoMutation.mutateAsync({ produto, variantesData }),
-    updateProduto: (id: string, data: { modelo: string; precoCompra: number; precoVenda: number }) =>
-      updateProdutoMutation.mutateAsync({ id, data }),
+      variantesData: { cor: string; tamanho: string }[],
+      estoqueMinimo: number
+    ) => addProdutoMutation.mutateAsync({ produto, variantesData, estoqueMinimo }),
+    updateProduto: (
+      id: string,
+      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number }
+    ) => updateProdutoMutation.mutateAsync({ id, data }),
     archiveProduto: (id: string) => archiveProdutoMutation.mutateAsync(id),
+    addVariantesProduto: (
+      produtoId: string,
+      variantesData: { cor: string; tamanho: string }[],
+      estoqueMinimo: number
+    ) => addVariantesMutation.mutateAsync({ produtoId, variantesData, estoqueMinimo }),
     isAdding: addProdutoMutation.isPending,
     isUpdating: updateProdutoMutation.isPending,
+    isAddingVariantes: addVariantesMutation.isPending,
   }
 }
