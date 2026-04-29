@@ -1,8 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useProdutos } from '../hooks/useProdutos';
-import { Plus, Search, Pencil, Archive, X, Package } from 'lucide-react';
+import { Plus, Search, Pencil, Archive, X, Package, ImagePlus } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 import type { CategoriaProduto, Produto } from '../types';
+
+async function uploadImagem(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('product-images')
+    .upload(filename, file, { contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from('product-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
 
 type ModalState =
   | { type: 'none' }
@@ -38,10 +51,34 @@ export default function Produtos() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [formError, setFormError] = useState('');
 
+  // Imagem
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoUrlAtual, setFotoUrlAtual] = useState<string | null>(null);
+  const [isUploadingFoto, setIsUploadingFoto] = useState(false);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+
   // Estado para adicionar variantes no modal de edição
   const [novasCoresStr, setNovasCoresStr] = useState('');
   const [novosTamanhosStr, setNovosTamanhosStr] = useState('');
   const [variantError, setVariantError] = useState('');
+
+  const clearFoto = () => {
+    if (fotoPreview) URL.revokeObjectURL(fotoPreview);
+    setFotoFile(null);
+    setFotoPreview(null);
+    setFotoUrlAtual(null);
+  };
+
+  const handleFotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (fotoPreview) URL.revokeObjectURL(fotoPreview);
+    setFotoFile(file);
+    setFotoPreview(URL.createObjectURL(file));
+    setFotoUrlAtual(null);
+    e.target.value = '';
+  };
 
   const isOpen = modal.type !== 'none';
 
@@ -54,6 +91,7 @@ export default function Produtos() {
   const openAdd = () => {
     setForm(INITIAL_FORM);
     setFormError('');
+    clearFoto();
     setModal({ type: 'add' });
   };
 
@@ -73,6 +111,10 @@ export default function Produtos() {
     setNovosTamanhosStr('');
     setFormError('');
     setVariantError('');
+    if (fotoPreview) URL.revokeObjectURL(fotoPreview);
+    setFotoFile(null);
+    setFotoPreview(null);
+    setFotoUrlAtual(produto.fotoUrl ?? null);
     setModal({ type: 'edit', produto });
   };
 
@@ -81,6 +123,7 @@ export default function Produtos() {
     setNovasCoresStr('');
     setNovosTamanhosStr('');
     setVariantError('');
+    clearFoto();
   };
 
   const activeProducts = produtos.filter((p) =>
@@ -96,6 +139,13 @@ export default function Produtos() {
       return;
     }
 
+    let fotoUrl: string | undefined;
+    if (fotoFile) {
+      setIsUploadingFoto(true);
+      try { fotoUrl = await uploadImagem(fotoFile); } catch { toast.error('Erro ao enviar a imagem.'); setIsUploadingFoto(false); return; }
+      setIsUploadingFoto(false);
+    }
+
     const cores = form.coresStr.split(',').map((c) => c.trim()).filter(Boolean);
     const tamanhos = form.tamanhosStr.split(',').map((t) => t.trim()).filter(Boolean);
     if (cores.length === 0) cores.push('');
@@ -104,10 +154,11 @@ export default function Produtos() {
     const variantesData = cores.flatMap((cor) => tamanhos.map((tamanho) => ({ cor, tamanho })));
 
     await addProduto(
-      { tipo: form.tipo, modelo: form.modelo, precoCompra: Number(form.precoCompra), precoVenda: Number(form.precoVenda), ativo: true },
+      { tipo: form.tipo, modelo: form.modelo, precoCompra: Number(form.precoCompra), precoVenda: Number(form.precoVenda), ativo: true, fotoUrl },
       variantesData,
       form.estoqueMinimo
     );
+    toast.success('Produto cadastrado com sucesso!');
     closeModal();
   };
 
@@ -121,12 +172,21 @@ export default function Produtos() {
       return;
     }
 
+    let resolvedFotoUrl: string | null | undefined = fotoUrlAtual;
+    if (fotoFile) {
+      setIsUploadingFoto(true);
+      try { resolvedFotoUrl = await uploadImagem(fotoFile); } catch { toast.error('Erro ao enviar a imagem.'); setIsUploadingFoto(false); return; }
+      setIsUploadingFoto(false);
+    }
+
     await updateProduto(modal.produto.id, {
       modelo: form.modelo,
       precoCompra: Number(form.precoCompra),
       precoVenda: Number(form.precoVenda),
       estoqueMinimo: form.estoqueMinimo,
+      fotoUrl: resolvedFotoUrl,
     });
+    toast.success('Produto atualizado com sucesso!');
     closeModal();
   };
 
@@ -159,6 +219,7 @@ export default function Produtos() {
     setVariantError('');
     try {
       await addVariantesProduto(modal.produto.id, variantesData, form.estoqueMinimo);
+      toast.success('Variantes adicionadas com sucesso!');
       setNovasCoresStr('');
       setNovosTamanhosStr('');
     } catch {
@@ -169,6 +230,7 @@ export default function Produtos() {
   const handleArchive = async () => {
     if (modal.type !== 'confirmArchive') return;
     await archiveProduto(modal.produto.id);
+    toast.success(`"${modal.produto.modelo}" arquivado.`);
     closeModal();
   };
 
@@ -247,6 +309,9 @@ export default function Produtos() {
         </div>
       )}
 
+      {/* Input de foto (compartilhado pelos modais) */}
+      <input ref={fotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFotoSelect} />
+
       {/* ── Modal: Novo Produto ── */}
       {modal.type === 'add' && createPortal(
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
@@ -294,6 +359,22 @@ export default function Produtos() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Foto do Produto</label>
+                  {fotoPreview ? (
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <img src={fotoPreview} alt="Preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 'var(--border-radius)', border: '1.5px solid var(--border-color)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => fotoInputRef.current?.click()}><ImagePlus size={13} /> Trocar</button>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={clearFoto}><X size={13} /> Remover</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => fotoInputRef.current?.click()}><ImagePlus size={14} /> Adicionar foto</button>
+                  )}
+                  <span className="form-hint">JPG, PNG ou WebP — máx. 5MB.</span>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Cores (Opcional)</label>
                   <input type="text" className="form-control" value={form.coresStr} onChange={(e) => setForm({ ...form, coresStr: e.target.value })} placeholder="Ex: Preto, Branco, Nude" />
                   <span className="form-hint">Separe por vírgula. Deixe em branco para produto sem variação de cor.</span>
@@ -309,8 +390,8 @@ export default function Produtos() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={isAdding}>
-                  {isAdding ? 'Salvando...' : 'Salvar Produto'}
+                <button type="submit" className="btn btn-primary" disabled={isAdding || isUploadingFoto}>
+                  {isUploadingFoto ? 'Enviando foto...' : isAdding ? 'Salvando...' : 'Salvar Produto'}
                 </button>
               </div>
             </form>
@@ -354,6 +435,22 @@ export default function Produtos() {
                   <label className="form-label">Estoque Mínimo</label>
                   <input type="number" min="0" className="form-control" value={form.estoqueMinimo} onChange={(e) => setForm({ ...form, estoqueMinimo: Number(e.target.value) })} />
                   <span className="form-hint">Alerta de estoque baixo no dashboard quando atingir esta quantidade.</span>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Foto do Produto</label>
+                  {(fotoPreview || fotoUrlAtual) ? (
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <img src={fotoPreview || fotoUrlAtual!} alt="Foto do produto" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 'var(--border-radius)', border: '1.5px solid var(--border-color)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => fotoInputRef.current?.click()}><ImagePlus size={13} /> Trocar</button>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={clearFoto}><X size={13} /> Remover</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => fotoInputRef.current?.click()}><ImagePlus size={14} /> Adicionar foto</button>
+                  )}
+                  <span className="form-hint">JPG, PNG ou WebP — máx. 5MB.</span>
                 </div>
 
                 {/* Variantes existentes */}
@@ -433,8 +530,8 @@ export default function Produtos() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={isUpdating}>
-                  {isUpdating ? 'Salvando...' : 'Salvar Alterações'}
+                <button type="submit" className="btn btn-primary" disabled={isUpdating || isUploadingFoto}>
+                  {isUploadingFoto ? 'Enviando foto...' : isUpdating ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

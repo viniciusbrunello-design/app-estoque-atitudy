@@ -5,6 +5,7 @@ export interface ChatMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
+  imageUrl?: string;
   criado_em?: string;
 }
 
@@ -29,17 +30,15 @@ export function useChat() {
     setIsLoadingHistory(false);
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, imageUrl?: string) => {
     if (!content.trim() || isLoading) return;
 
-    const userMsg: ChatMessage = { role: 'user', content };
+    const userMsg: ChatMessage = { role: 'user', content, imageUrl };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    // Save user message
     await supabase.from('chat_messages').insert({ role: 'user', content, canal: 'web', chat_id: null });
 
-    // Build context (last 14 messages)
     const historico = messages.slice(-14).map((m) => ({ role: m.role, content: m.content }));
 
     try {
@@ -51,7 +50,7 @@ export function useChat() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ mensagem: content, historico }),
+          body: JSON.stringify({ mensagem: content, historico, imagemUrl: imageUrl }),
         },
       );
 

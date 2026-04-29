@@ -20,6 +20,7 @@ type ProdutoRow = {
   preco_compra: number
   preco_venda: number
   ativo: boolean
+  foto_url: string | null
   criado_em: string
   atualizado_em: string
 }
@@ -32,6 +33,7 @@ function toProduto(row: ProdutoRow): Produto {
     precoCompra: Number(row.preco_compra),
     precoVenda: Number(row.preco_venda),
     ativo: row.ativo,
+    fotoUrl: row.foto_url ?? undefined,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
   }
@@ -62,6 +64,7 @@ export const produtoRepository = {
         preco_compra: produto.precoCompra,
         preco_venda: produto.precoVenda,
         ativo: true,
+        foto_url: produto.fotoUrl ?? null,
       })
       .select()
       .single()
@@ -72,7 +75,7 @@ export const produtoRepository = {
 
   async atualizar(
     id: string,
-    data: { modelo: string; precoCompra: number; precoVenda: number }
+    data: { modelo: string; precoCompra: number; precoVenda: number; fotoUrl?: string | null }
   ): Promise<Produto> {
     z.object({
       modelo: z.string().min(2, 'Modelo deve ter ao menos 2 caracteres').max(100),
@@ -80,13 +83,16 @@ export const produtoRepository = {
       precoVenda: z.number().min(0, 'Preço de venda não pode ser negativo'),
     }).parse(data)
 
+    const updatePayload: Record<string, unknown> = {
+      modelo: data.modelo.trim(),
+      preco_compra: data.precoCompra,
+      preco_venda: data.precoVenda,
+    }
+    if (data.fotoUrl !== undefined) updatePayload.foto_url = data.fotoUrl
+
     const { data: result, error } = await supabase
       .from('produtos')
-      .update({
-        modelo: data.modelo.trim(),
-        preco_compra: data.precoCompra,
-        preco_venda: data.precoVenda,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single()

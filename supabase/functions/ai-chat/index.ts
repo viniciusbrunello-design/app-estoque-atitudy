@@ -12,9 +12,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const { mensagem, historico = [] } = await req.json();
+    const { mensagem, historico = [], imagemUrl } = await req.json();
 
-    if (!mensagem?.trim()) {
+    if (!mensagem?.trim() && !imagemUrl) {
       return new Response(JSON.stringify({ error: "mensagem vazia" }), {
         status: 400,
         headers: { ...cors, "Content-Type": "application/json" },
@@ -27,7 +27,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const resposta = await processarMensagem(openrouterKey, supabase, mensagem, historico);
+    const resposta = await processarMensagem(openrouterKey, supabase, mensagem ?? '', historico, imagemUrl);
 
     return new Response(JSON.stringify({ resposta }), {
       headers: { ...cors, "Content-Type": "application/json" },

@@ -26,7 +26,7 @@ export function useProdutos() {
       variantesData,
       estoqueMinimo,
     }: {
-      produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean }
+      produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean; fotoUrl?: string }
       variantesData: { cor: string; tamanho: string }[]
       estoqueMinimo: number
     }) => {
@@ -47,12 +47,13 @@ export function useProdutos() {
       data,
     }: {
       id: string
-      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number }
+      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number; fotoUrl?: string | null }
     }) => {
       await produtoRepository.atualizar(id, {
         modelo: data.modelo,
         precoCompra: data.precoCompra,
         precoVenda: data.precoVenda,
+        fotoUrl: data.fotoUrl,
       })
       await varianteRepository.atualizarMinimosPorProduto(id, data.estoqueMinimo)
     },
@@ -95,13 +96,13 @@ export function useProdutos() {
     variantes,
     isLoading: loadingProdutos || loadingVariantes,
     addProduto: (
-      produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean },
+      produto: { tipo: CategoriaProduto; modelo: string; precoCompra: number; precoVenda: number; ativo: boolean; fotoUrl?: string },
       variantesData: { cor: string; tamanho: string }[],
       estoqueMinimo: number
     ) => addProdutoMutation.mutateAsync({ produto, variantesData, estoqueMinimo }),
     updateProduto: (
       id: string,
-      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number }
+      data: { modelo: string; precoCompra: number; precoVenda: number; estoqueMinimo: number; fotoUrl?: string | null }
     ) => updateProdutoMutation.mutateAsync({ id, data }),
     archiveProduto: (id: string) => archiveProdutoMutation.mutateAsync(id),
     addVariantesProduto: (

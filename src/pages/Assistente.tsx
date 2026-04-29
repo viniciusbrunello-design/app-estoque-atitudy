@@ -1,20 +1,37 @@
 import { useState, useRef, useEffect } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Bot, Send, Mic, MicOff, Trash2 } from 'lucide-react';
+import { Bot, Send, Mic, MicOff, Trash2, ImagePlus, X } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
+import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 import './Assistente.css';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySpeechRecognition = any;
 
+async function uploadImagem(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('product-images')
+    .upload(filename, file, { contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from('product-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
+
 export default function Assistente() {
   const { messages, isLoading, isLoadingHistory, sendMessage, clearHistory } = useChat();
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<AnySpeechRecognition>(null);
   const accumulatedRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,11 +44,27 @@ export default function Assistente() {
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [input]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text || isLoading) return;
+    if ((!text && !imageFile) || isLoading || isUploading) return;
+
+    let imageUrl: string | undefined;
+
+    if (imageFile) {
+      setIsUploading(true);
+      try {
+        imageUrl = await uploadImagem(imageFile);
+      } catch {
+        toast.error('Erro ao enviar a imagem. Tente novamente.');
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+
     setInput('');
-    sendMessage(text);
+    clearImagePreview();
+    sendMessage(text || 'Foto enviada', imageUrl);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -39,6 +72,21 @@ export default function Assistente() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  };
+
+  const clearImagePreview = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const toggleVoice = () => {
@@ -93,6 +141,8 @@ export default function Assistente() {
     }
   };
 
+  const isSendDisabled = (!input.trim() && !imageFile) || isLoading || isUploading;
+
   return (
     <div className="assistente-container">
       <div className="page-header">
@@ -121,7 +171,7 @@ export default function Assistente() {
                 <p className="chat-welcome-title">Olá! Sou o Lucas 👋</p>
                 <p className="chat-welcome-desc">
                   Posso te ajudar a cadastrar produtos, registrar estoque e responder consultas.
-                  Escreva ou use o microfone!
+                  Escreva, use o microfone ou envie uma foto de produto!
                 </p>
               </div>
             </div>
@@ -134,7 +184,17 @@ export default function Assistente() {
                       <Bot size={15} />
                     </div>
                   )}
-                  <div className={`chat-bubble ${msg.role}`}>{msg.content}</div>
+                  <div className={`chat-bubble ${msg.role}`}>
+                    {msg.imageUrl && (
+                      <img
+                        src={msg.imageUrl}
+                        alt="Foto enviada"
+                        className="chat-bubble-image"
+                        onClick={() => window.open(msg.imageUrl, '_blank')}
+                      />
+                    )}
+                    {msg.content !== 'Foto enviada' || !msg.imageUrl ? msg.content : null}
+                  </div>
                 </div>
               ))}
               {isLoading && (
@@ -153,28 +213,65 @@ export default function Assistente() {
         </div>
 
         <div className="chat-input-area">
-          <textarea
-            ref={textareaRef}
-            className="chat-input"
-            placeholder="Escreva uma mensagem..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            disabled={isLoading}
+          <div className="chat-input-wrapper">
+            {imagePreview && (
+              <div className="chat-image-preview">
+                <img src={imagePreview} alt="Preview" />
+                <button
+                  className="chat-image-preview-remove"
+                  onClick={clearImagePreview}
+                  type="button"
+                  title="Remover imagem"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="chat-input"
+              placeholder={imageFile ? 'Diga de qual produto é essa foto (opcional)...' : 'Escreva uma mensagem...'}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              disabled={isLoading || isUploading}
+            />
+          </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageSelect}
           />
+
+          <button
+            className="btn btn-icon chat-photo-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="Enviar foto de produto"
+            type="button"
+            disabled={isLoading || isUploading}
+          >
+            <ImagePlus size={18} />
+          </button>
+
           <button
             className={`btn btn-icon chat-voice-btn${isRecording ? ' recording' : ''}`}
             onClick={toggleVoice}
             title={isRecording ? 'Parar gravação' : 'Usar voz'}
             type="button"
+            disabled={isUploading}
           >
             {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
+
           <button
             className="btn btn-primary btn-icon"
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={isSendDisabled}
             type="button"
           >
             <Send size={18} />

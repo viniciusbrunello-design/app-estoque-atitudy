@@ -7,6 +7,7 @@ export interface Produto {
   precoCompra: number;
   precoVenda: number;
   ativo: boolean;
+  fotoUrl?: string;
   criadoEm: string; /* ISO string */
   atualizadoEm: string;
 }

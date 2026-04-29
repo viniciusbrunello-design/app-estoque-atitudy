@@ -1,0 +1,220 @@
+/* =============================================
+   Estoque – Card layout
+   ============================================= */
+.produto-card {
+  margin-bottom: 1rem;
+}
+
+.produto-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.produto-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.produto-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+  line-height: 1.2;
+}
+
+.produto-card-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.produto-card-total-num {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.produto-card-total-label {
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  text-align: right;
+}
+
+/* Color section */
+.produto-cor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.produto-cor-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.produto-cor-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 56px;
+  text-transform: capitalize;
+  padding: 0.25rem 0;
+  flex-shrink: 0;
+}
+
+/* =============================================
+   Size chips (calçados)
+   ============================================= */
+.tamanho-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tamanho-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--border-radius);
+  border: 1.5px solid;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: none;
+  gap: 2px;
+  padding: 0;
+  font-family: var(--font-family);
+}
+
+.tamanho-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.chip-ok {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.chip-low {
+  border-color: var(--color-warning-text);
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.chip-zero {
+  border-color: var(--border-color);
+  background-color: #f9fafb;
+  color: var(--color-text-tertiary);
+}
+
+.chip-size {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chip-qty {
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* =============================================
+   Simple rows (bolsas / bijuterias)
+   ============================================= */
+.produto-simple-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border-color);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.produto-simple-row:last-child {
+  border-bottom: none;
+}
+
+.produto-cor-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-main);
+  flex: 1;
+}
+
+.produto-simple-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.produto-saldo {
+  font-size: 0.875rem;
+  font-weight: 700;
+  min-width: 64px;
+  text-align: right;
+}
+
+.saldo-ok { color: var(--color-primary); }
+.saldo-low { color: var(--color-warning-text); }
+.saldo-zero { color: var(--color-text-tertiary); }
+
+/* =============================================
+   Modal tipo toggle (Entrada / Saída)
+   ============================================= */
+.tipo-toggle {
+  display: flex;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.tipo-toggle-btn {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  border: none;
+  background: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-family: var(--font-family);
+}
+
+.tipo-toggle-btn + .tipo-toggle-btn {
+  border-left: 1.5px solid var(--border-color);
+}
+
+.tipo-toggle-btn.active-entrada {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  font-weight: 600;
+}
+
+.tipo-toggle-btn.active-saida {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  font-weight: 600;
+}

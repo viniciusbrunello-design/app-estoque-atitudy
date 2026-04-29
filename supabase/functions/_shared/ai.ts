@@ -4,6 +4,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 type SupabaseClient = ReturnType<typeof createClient>;
 type Message = { role: string; content: string };
 
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail: "low" | "high" } };
+
+type VisionMessage = { role: string; content: string | ContentPart[] };
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4o-mini";
 
@@ -88,11 +94,27 @@ async function callLLM(
   systemPrompt: string,
   messages: Message[],
   jsonMode = false,
+  imagemUrl?: string,
 ): Promise<string> {
+  let visionMessages: VisionMessage[] = messages.map((m) => ({ ...m }));
+
+  if (imagemUrl) {
+    const lastIdx = visionMessages.length - 1;
+    const lastMsg = visionMessages[lastIdx];
+    if (lastMsg.role === "user") {
+      const parts: ContentPart[] = [];
+      if ((lastMsg.content as string).trim()) {
+        parts.push({ type: "text", text: lastMsg.content as string });
+      }
+      parts.push({ type: "image_url", image_url: { url: imagemUrl, detail: "low" } });
+      visionMessages[lastIdx] = { role: "user", content: parts };
+    }
+  }
+
   // deno-lint-ignore no-explicit-any
   const body: Record<string, any> = {
     model: MODEL,
-    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    messages: [{ role: "system", content: systemPrompt }, ...visionMessages],
   };
   if (jsonMode) body.response_format = { type: "json_object" };
 
@@ -147,7 +169,6 @@ async function handleProduto(
   const tamanhos = parseTamanhos(d.tamanhos);
   const cores: string[] = d.cores?.length ? d.cores : [""];
 
-  // Check if product already exists
   const { data: existing } = await supabase
     .from("produtos")
     .select("id, modelo, preco_venda, preco_compra")
@@ -167,7 +188,6 @@ async function handleProduto(
     return `✅ ${existing.modelo} atualizado!\n\nPreço de venda: R$ ${Number(d.preco_venda ?? existing.preco_venda).toFixed(2)}`;
   }
 
-  // Create new product
   const { data: novoProduto, error } = await supabase
     .from("produtos")
     .insert({
@@ -220,7 +240,6 @@ async function handleEstoque(
     return `Preciso de mais informações: ${faltam}. Pode completar?`;
   }
 
-  // Find product (fuzzy match)
   const { data: produto } = await supabase
     .from("produtos")
     .select("id, modelo, tipo")
@@ -236,7 +255,6 @@ async function handleEstoque(
   const resultados: string[] = [];
 
   const atualizarVariante = async (tamanho: string, novaQty: number) => {
-    // Find or create variante
     let { data: variante } = await supabase
       .from("variantes")
       .select("id")
@@ -254,7 +272,6 @@ async function handleEstoque(
       variante = nova;
     }
 
-    // Get current stock from view
     const { data: saldoRow } = await supabase
       .from("vw_saldo_estoque")
       .select("saldo_atual")
@@ -333,6 +350,65 @@ async function handleConsulta(
   return await callLLM(apiKey, consultaPrompt, messages, false);
 }
 
+async function handleFoto(
+  apiKey: string,
+  supabase: SupabaseClient,
+  messages: Message[],
+  imagemUrl: string,
+): Promise<string> {
+  const { data: produtos } = await supabase
+    .from("produtos")
+    .select("id, modelo, tipo")
+    .eq("ativo", true)
+    .order("modelo");
+
+  if (!produtos?.length) {
+    return "Não há produtos cadastrados ainda. Cadastre um produto primeiro antes de adicionar fotos.";
+  }
+
+  const listaProdutos = produtos.map((p) => `- ${p.modelo} (${p.tipo})`).join("\n");
+
+  const fotoPrompt =
+    `Você é Lucas, gerente de estoque de uma loja de calçados e acessórios femininos.\n` +
+    `O usuário enviou uma foto de um produto. Analise a imagem e o texto para identificar de qual produto cadastrado se trata.\n\n` +
+    `Produtos cadastrados:\n${listaProdutos}\n\n` +
+    `Retorne APENAS JSON:\n` +
+    `{"produto_identificado": "nome exato do produto da lista ou null", "confianca": "alta" | "media" | "baixa"}`;
+
+  const raw = await callLLM(apiKey, fotoPrompt, messages, true, imagemUrl);
+  const d = JSON.parse(raw);
+
+  if (!d.produto_identificado || d.confianca === "baixa") {
+    return (
+      `Recebi a foto, mas não consegui identificar o produto com certeza. 🤔\n\n` +
+      `Produtos cadastrados:\n${listaProdutos}\n\n` +
+      `Envie novamente a foto mencionando o produto. Ex: "Foto da Sandália Gladiadora"`
+    );
+  }
+
+  const produto = produtos.find(
+    (p) =>
+      p.modelo.toLowerCase().includes(d.produto_identificado.toLowerCase()) ||
+      d.produto_identificado.toLowerCase().includes(p.modelo.toLowerCase()),
+  );
+
+  if (!produto) {
+    return (
+      `Produto "${d.produto_identificado}" não encontrado no catálogo.\n\n` +
+      `Produtos disponíveis:\n${listaProdutos}`
+    );
+  }
+
+  const { error } = await supabase
+    .from("produtos")
+    .update({ foto_url: imagemUrl })
+    .eq("id", produto.id);
+
+  if (error) return "Erro ao salvar a foto. Tente novamente.";
+
+  return `✅ Foto adicionada com sucesso!\n\n📦 Produto: ${produto.modelo}\n\nA imagem já aparece no catálogo de produtos.`;
+}
+
 // ======================== MAIN ENTRY ========================
 
 export async function processarMensagem(
@@ -340,8 +416,14 @@ export async function processarMensagem(
   supabase: SupabaseClient,
   mensagem: string,
   historico: Message[],
+  imagemUrl?: string,
 ): Promise<string> {
   const messages: Message[] = [...historico, { role: "user", content: mensagem }];
+
+  // Imagem presente → sempre rota de foto
+  if (imagemUrl) {
+    return handleFoto(openrouterKey, supabase, messages, imagemUrl);
+  }
 
   const routeRaw = await callLLM(openrouterKey, ROUTER_PROMPT, messages, true);
   let rota = "Indefinido";
@@ -359,6 +441,6 @@ export async function processarMensagem(
     case "Consulta":
       return handleConsulta(openrouterKey, supabase, messages);
     default:
-      return "Não entendi bem 🤔\n\nPosso ajudar com:\n• Cadastrar produtos (nome, cores, tamanhos, preços)\n• Registrar estoque (quantidades por tamanho/cor)\n• Consultar disponibilidade e preços\n\nTente novamente!";
+      return "Não entendi bem 🤔\n\nPosso ajudar com:\n• Cadastrar produtos (nome, cores, tamanhos, preços)\n• Registrar estoque (quantidades por tamanho/cor)\n• Consultar disponibilidade e preços\n• Adicionar fotos aos produtos (envie a foto!)\n\nTente novamente!";
   }
 }
